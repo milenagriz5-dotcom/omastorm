@@ -153,7 +153,7 @@ fn fixture_transport_and_shared_commands() {
         assert!(ids.contains(id));
     }
     let sources = hello["sources"].as_array().unwrap();
-    assert_eq!(sources.len(), 4);
+    assert_eq!(sources.len(), 5);
     assert_eq!(sources[0]["id"], "nexrad");
     assert_eq!(sources[0]["family"], "polar");
     assert_eq!(sources[0]["kind"], "site");
@@ -175,6 +175,18 @@ fn fixture_transport_and_shared_commands() {
     assert_eq!(
         mrms["coverage"],
         json!({"kind":"box", "north":55.0,"south":20.0,"east":-60.0,"west":-130.0})
+    );
+    let inpe = sources.iter().find(|s| s["id"] == "inpe-brazil").unwrap();
+    assert_eq!(inpe["family"], "grid");
+    assert_eq!(inpe["kind"], "mosaic");
+    assert_eq!(inpe["selectionPriority"], 20);
+    assert_eq!(
+        inpe["attribution"],
+        "INPE/CPTEC Nowcasting · DECEA, CEMADEN, SIPAM and state radars"
+    );
+    assert_eq!(
+        inpe["coverage"],
+        json!({"kind":"box", "north":5.2,"south":-33.85,"east":-32.96,"west":-75.2})
     );
     let initial = read(&mut first);
     assert_eq!(initial["frame"]["scanTime"], "2013-05-20T20:16:43Z");

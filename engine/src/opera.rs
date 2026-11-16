@@ -268,7 +268,7 @@ pub fn classify(values: &[f32], nodata: Option<f32>, bounds: &[f64], classes: us
     pixels
 }
 
-fn class_of(value: f64, bounds: &[f64], classes: usize) -> u8 {
+pub(crate) fn class_of(value: f64, bounds: &[f64], classes: usize) -> u8 {
     if bounds.len() < 2 {
         return 0;
     }

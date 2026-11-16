@@ -43,9 +43,18 @@ pub const MRMS_CONUS: LatLonBox = LatLonBox {
     west: -130.0,
 };
 
+/// INPE/CPTEC Brazil composite grid: 3840 × 3550 cells of 0.011°, enclosing
+/// every CAPPI 3 km radar box INPE listed on 2026-11-15 (`docs/inpe-brazil.md`).
+pub const INPE_BRAZIL: LatLonBox = LatLonBox {
+    north: 5.2,
+    south: -33.85,
+    east: -32.96,
+    west: -75.2,
+};
+
 /// Live GridFamily boxes, including manual-only sources. Polar NEXRAD uses
 /// [`nexrad_network`]; geographic clipping does not imply follow eligibility.
-pub const LIVE_MOSAICS: &[LatLonBox] = &[OPERA, MRMS_CONUS];
+pub const LIVE_MOSAICS: &[LatLonBox] = &[OPERA, MRMS_CONUS, INPE_BRAZIL];
 
 /// Coarse NEXRAD network clip (CONUS / AK / HI / Guam), not per-dish circles.
 pub fn nexrad_network(lon: f64, lat: f64) -> bool {
