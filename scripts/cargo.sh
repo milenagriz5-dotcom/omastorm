@@ -2,6 +2,13 @@
 # Prefer an installed toolchain; also support an isolated checkout-local one.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# Protocol tests bind Unix sockets under target/. A managed target/ (mise's
+# mr_boxington option, or plain mbx) is a symlink into the long mbx cache
+# path, which overflows SUN_LEN. Removing the link loses no build output.
+if [[ -L target ]]; then
+  echo "scripts/cargo.sh: replacing symlinked target/ ($(readlink target)) with a real directory" >&2
+  rm target
+fi
 if ! command -v cargo >/dev/null && [[ -x .tools/cargo/bin/cargo ]]; then
   export RUSTUP_HOME="$PWD/.tools/rustup" CARGO_HOME="$PWD/.tools/cargo"
   export PATH="$CARGO_HOME/bin:$PATH"
