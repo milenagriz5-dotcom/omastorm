@@ -2,6 +2,7 @@ mod catalog;
 mod cog;
 mod envelope;
 mod grid_fixture;
+mod inpe;
 mod live;
 mod live_index;
 mod metar;
@@ -70,7 +71,6 @@ const RETIRE_AFTER: Duration = Duration::from_secs(30);
 const QUEUE: usize = 128;
 /// A reachable feed whose newest radial for the station is this old or older
 /// is `stale`, and `unavailable` at three times that.
-const STALE_AFTER: Duration = Duration::from_secs(600);
 const UNAVAILABLE_AFTER: Duration = Duration::from_secs(1800);
 /// Playback advances one frame per tick and loops (DESIGN.md, timeline).
 const PLAY_LOOP: Duration = Duration::from_secs(10);
@@ -328,12 +328,16 @@ struct Arrival {
 /// and `Offline` are not judged by age: a switch or the poller set them and
 /// the next sweep clears them. `None` (no radial yet) keeps the current
 /// condition.
-fn feed_condition(current: ConnectionStatus, evidence_age: Option<u64>) -> ConnectionStatus {
+fn feed_condition(
+    current: ConnectionStatus,
+    evidence_age: Option<u64>,
+    rules: source::AgeRules,
+) -> ConnectionStatus {
     match (current, evidence_age) {
         (ConnectionStatus::Loading | ConnectionStatus::Offline | ConnectionStatus::Idle, _)
         | (_, None) => current,
-        (_, Some(age)) if age >= UNAVAILABLE_AFTER.as_secs() => ConnectionStatus::Unavailable,
-        (_, Some(age)) if age >= STALE_AFTER.as_secs() => ConnectionStatus::Stale,
+        (_, Some(age)) if age >= rules.unavailable_after_s => ConnectionStatus::Unavailable,
+        (_, Some(age)) if age >= rules.stale_after_s => ConnectionStatus::Stale,
         _ => ConnectionStatus::Ok,
     }
 }
@@ -557,8 +561,12 @@ impl Shared {
         // Live selections follow the newest complete frame's age (polar: the
         // sweep in progress while one paints). Idle has no selection to judge.
         if self.state.mode == Mode::Live && self.state.selection.is_some() {
-            self.state.connection.status =
-                feed_condition(self.state.connection.status, self.evidence_age_secs());
+            let rules = self.registry.age_rules(self.mosaic_source_id());
+            self.state.connection.status = feed_condition(
+                self.state.connection.status,
+                self.evidence_age_secs(),
+                rules,
+            );
         }
         line(&Message::State(&self.state))
     }
@@ -2612,23 +2620,36 @@ mod tests {
     #[test]
     fn a_reachable_feed_is_judged_by_the_newest_radial_age() {
         use ConnectionStatus::*;
-        let stale = STALE_AFTER.as_secs();
-        let unavailable = UNAVAILABLE_AFTER.as_secs();
+        let rules = source::DEFAULT_AGE;
+        assert_eq!(rules.unavailable_after_s, UNAVAILABLE_AFTER.as_secs());
+        let stale = rules.stale_after_s;
+        let unavailable = rules.unavailable_after_s;
         for from in [Ok, Stale, Unavailable] {
-            assert_eq!(feed_condition(from, Some(0)), Ok);
-            assert_eq!(feed_condition(from, Some(stale - 1)), Ok);
-            assert_eq!(feed_condition(from, Some(stale)), Stale);
-            assert_eq!(feed_condition(from, Some(unavailable - 1)), Stale);
-            assert_eq!(feed_condition(from, Some(unavailable)), Unavailable);
+            assert_eq!(feed_condition(from, Some(0), rules), Ok);
+            assert_eq!(feed_condition(from, Some(stale - 1), rules), Ok);
+            assert_eq!(feed_condition(from, Some(stale), rules), Stale);
+            assert_eq!(feed_condition(from, Some(unavailable - 1), rules), Stale);
+            assert_eq!(feed_condition(from, Some(unavailable), rules), Unavailable);
             // Nothing received yet: nothing to judge.
-            assert_eq!(feed_condition(from, None), from);
+            assert_eq!(feed_condition(from, None, rules), from);
         }
         // A switch or the poller set these; only a sweep clears them.
         for held in [Loading, Offline, Idle] {
             for age in [None, Some(0), Some(stale), Some(unavailable)] {
-                assert_eq!(feed_condition(held, age), held);
+                assert_eq!(feed_condition(held, age, rules), held);
             }
         }
+        // A slower provider declares its own rules: NEXRAD-stale is live there.
+        let registry = source::SourceRegistry::compiled();
+        assert_eq!(registry.age_rules(None), rules);
+        assert_eq!(registry.age_rules(Some("nexrad")), rules);
+        let inpe = registry.age_rules(Some(inpe::ID));
+        assert_eq!(feed_condition(Ok, Some(stale), inpe), Ok);
+        assert_eq!(feed_condition(Ok, Some(inpe.stale_after_s), inpe), Stale);
+        assert_eq!(
+            feed_condition(Ok, Some(inpe.unavailable_after_s), inpe),
+            Unavailable
+        );
         assert_eq!(
             serde_json::to_string(&Unavailable).unwrap(),
             "\"unavailable\""
@@ -2651,7 +2672,7 @@ mod tests {
             "do not restart every tick after going unavailable"
         );
         assert!(
-            !should_restart_live(false, Some(STALE_AFTER.as_secs()), cooldown),
+            !should_restart_live(false, Some(source::DEFAULT_AGE.stale_after_s), cooldown),
             "stale is not old enough; the inner iterator watchdog fires first"
         );
         assert!(should_restart_live(

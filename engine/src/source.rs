@@ -32,6 +32,20 @@ impl HistoryPolicy {
                 .is_none_or(|window| stamp > newest.saturating_sub(window))
     }
 }
+/// How old the newest complete frame may get before the connection reads
+/// STALE, then UNAVAILABLE. Sources with slower delivery declare their own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AgeRules {
+    pub stale_after_s: u64,
+    pub unavailable_after_s: u64,
+}
+
+/// NEXRAD's rules, used by every source that does not declare its own.
+pub const DEFAULT_AGE: AgeRules = AgeRules {
+    stale_after_s: 600,
+    unavailable_after_s: 1800,
+};
+
 /// Following hands off when another covering polar site is closer than this
 /// fraction of the held site's distance, and by at least [`HANDOFF_MARGIN_KM`].
 pub const HANDOFF_RATIO: f64 = 0.8;
@@ -171,6 +185,7 @@ pub struct SourceRegistry {
     pub nexrad: Nexrad,
     pub opera: crate::opera::Opera,
     pub mrms: crate::mrms::Mrms,
+    pub inpe: crate::inpe::Inpe,
     pub fixture: crate::grid_fixture::FixtureMosaic,
 }
 
@@ -180,16 +195,18 @@ impl SourceRegistry {
             nexrad: Nexrad::new(),
             opera: crate::opera::Opera::new(),
             mrms: crate::mrms::Mrms::new(),
+            inpe: crate::inpe::Inpe::new(),
             fixture: crate::grid_fixture::FixtureMosaic::new(),
         }
     }
 
-    pub fn adapters(&self) -> [AdapterRef<'_>; 4] {
+    pub fn adapters(&self) -> [AdapterRef<'_>; 5] {
         [
             AdapterRef::Nexrad(&self.nexrad),
             AdapterRef::Grid(GridRef::Opera(&self.opera)),
             AdapterRef::Grid(GridRef::FixtureMosaic(&self.fixture)),
             AdapterRef::Grid(GridRef::Mrms(&self.mrms)),
+            AdapterRef::Grid(GridRef::Inpe(&self.inpe)),
         ]
     }
 
@@ -251,6 +268,15 @@ impl SourceRegistry {
         }
     }
 
+    /// Age rules for the selected source; unknown ids and polar sites use
+    /// [`DEFAULT_AGE`].
+    pub fn age_rules(&self, id: Option<&str>) -> AgeRules {
+        match id.and_then(|id| self.get(id)) {
+            Some(AdapterRef::Grid(GridRef::Inpe(_))) => crate::inpe::AGE,
+            _ => DEFAULT_AGE,
+        }
+    }
+
     pub fn polls(&self, id: &str) -> bool {
         matches!(self.get(id), Some(AdapterRef::Grid(grid)) if grid.polls())
     }
@@ -275,6 +301,7 @@ pub enum AdapterRef<'a> {
 pub enum GridRef<'a> {
     Opera(&'a crate::opera::Opera),
     Mrms(&'a crate::mrms::Mrms),
+    Inpe(&'a crate::inpe::Inpe),
     FixtureMosaic(&'a crate::grid_fixture::FixtureMosaic),
 }
 
@@ -315,6 +342,7 @@ impl<'a> GridRef<'a> {
         match self {
             Self::Opera(a) => a.id,
             Self::Mrms(a) => a.id,
+            Self::Inpe(a) => a.id,
             Self::FixtureMosaic(a) => a.id,
         }
     }
@@ -323,6 +351,7 @@ impl<'a> GridRef<'a> {
         match self {
             Self::Opera(a) => a.metadata(),
             Self::Mrms(a) => a.metadata(),
+            Self::Inpe(a) => a.metadata(),
             Self::FixtureMosaic(a) => a.metadata(),
         }
     }
@@ -351,6 +380,9 @@ impl<'a> GridRef<'a> {
             Self::Mrms(a) => MosaicStart::Live {
                 placeholder: a.loading_placeholder().map(Box::new),
             },
+            Self::Inpe(a) => MosaicStart::Live {
+                placeholder: a.loading_placeholder().map(Box::new),
+            },
             Self::FixtureMosaic(a) => MosaicStart::Static { frames: a.frames() },
         }
     }
@@ -362,18 +394,20 @@ impl<'a> GridRef<'a> {
                 window_ms: None,
             }),
             Self::Mrms(_) => Some(crate::mrms::HISTORY),
+            Self::Inpe(_) => Some(crate::inpe::HISTORY),
             Self::FixtureMosaic(_) => None,
         }
     }
 
     fn polls(&self) -> bool {
-        matches!(self, Self::Opera(_) | Self::Mrms(_))
+        matches!(self, Self::Opera(_) | Self::Mrms(_) | Self::Inpe(_))
     }
 
     fn poll(&self, events: GridSender, retained: Vec<i64>) -> Option<JoinHandle<()>> {
         match self {
             Self::Opera(a) => Some(a.poll(events, Default::default())),
             Self::Mrms(a) => Some(a.poll(events, retained)),
+            Self::Inpe(a) => Some(a.poll(events, retained)),
             Self::FixtureMosaic(_) => None,
         }
     }

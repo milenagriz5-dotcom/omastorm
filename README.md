@@ -69,6 +69,8 @@ you left off.
 
 U.S. radar comes from NOAA NEXRAD, and `Shift+N` switches to the NOAA MRMS
 mosaic for the contiguous U.S. European radar comes from EUMETNET OPERA.
+Brazilian radar comes from INPE/CPTEC, assembled by Omastorm into one
+composite.
 Coverage depends on radar range and the data available from each provider. Some areas have no radar data, even when their cities appear in
 search.
 
@@ -78,7 +80,7 @@ search.
 
 ## What you are looking at
 
-Omastorm uses three radar products. In the U.S., NOAA NEXRAD provides
+Omastorm uses four radar products. In the U.S., NOAA NEXRAD provides
 individual radar volumes: each dish spins, sends a pulse, and measures how
 much bounced back. In Europe, EUMETNET OPERA provides a mosaic
 combining the strongest radar returns at each location.
@@ -87,6 +89,14 @@ Press `Shift+N` for NOAA's MRMS mosaic: every U.S. radar merged into one
 image, covering the contiguous U.S. Press it again, or `n`, to go back to the
 nearest station. You can also search **mrms**. It never turns on by itself,
 and looping its hour of history uses more CPU than a single station.
+
+In Brazil, INPE/CPTEC publishes each radar's reflectivity 3 km above the
+ground (CAPPI) as a coloured image, but no national mosaic. Omastorm reads
+the values back through INPE's published colour legend, exact to its 1 dBZ
+steps, and builds a composite of the strongest return at each location. It
+turns on by itself over Brazil; you can also search **inpe-brazil**. INPE
+delivers 10 to 40 minutes after the radars observe, so the newest composite
+is usually 20 to 30 minutes old.
 
 For NEXRAD, Omastorm shows **reflectivity** on the lowest tilt: the beam that
 stays closest to the ground. OPERA combines multiple radars and elevations into one image.
@@ -164,7 +174,7 @@ still applies when choosing a place.
 A **site** (`KTLX`, `tlx`) locks that dish and centres on it. Clicking the
 source title opens the same card on covering mosaics and nearby dishes.
 
-A **mosaic** (`opera` or `mrms-conus`) locks that source and centres the map on its coverage.
+A **mosaic** (`opera`, `mrms-conus` or `inpe-brazil`) locks that source and centres the map on its coverage.
 
 ![Search a radar site](docs/media/readme/search-site.png)
 
@@ -191,7 +201,8 @@ map. It is not a new row of chrome.
 
 Selecting a radar loads its recent scans for playback. NEXRAD history grows
 toward **60 frames / two hours**;
-OPERA retains up to **12 mosaic frames**; MRMS retains up to **30 frames / one hour**.
+OPERA retains up to **12 mosaic frames**; MRMS retains up to **30 frames / one hour**;
+INPE retains up to **12 composites / two hours**.
 Older scans drop out.
 
 Space and the Play button loop from the selected completed frame through the
@@ -207,7 +218,8 @@ slower in clear air). While a volume is in progress the engine reads live
 chunks, so the sweep can paint as the antenna turns. If no new chunk arrives
 for 90 seconds it rediscovers the latest volume; cached frames stay. OPERA
 polls its public 24-hour cache and loads complete mosaic frames.
-MRMS checks for new data every 30 seconds while selected. If the feed drops,
+MRMS checks for new data every 30 seconds while selected; INPE every two
+minutes, building each ten-minute composite once its radars have delivered. If the feed drops,
 the loop you have keeps playing. There's no METAR overlay or weak-return
 filtering on MRMS.
 
@@ -358,7 +370,9 @@ Radar: NOAA NEXRAD Level II via the NOAA Open Data program on AWS;
 NOAA/NSSL MRMS QC base reflectivity via its public S3 archive; Europe
 mosaic from [EUMETNET OPERA](https://www.eumetnet.eu/) COMP DBZH via the
 [Open Radar Data](https://eumetnet.github.io/openradardata-documentation/1-ORD-API-overview/)
-24-hour cache ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)). Basemap: ©
+24-hour cache ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)); Brazil
+composite built by Omastorm from [INPE/CPTEC Nowcasting](https://nowcasting.cptec.inpe.br/)
+CAPPI 3 km images of DECEA, CEMADEN, SIPAM and state radars. Basemap: ©
 OpenStreetMap contributors, [ODbL](https://opendatacommons.org/licenses/odbl/1-0/),
 tiles by [OpenFreeMap](https://openfreemap.org); Natural Earth, public domain.
 Location search: [GeoNames](https://www.geonames.org/),

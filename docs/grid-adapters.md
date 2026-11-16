@@ -33,7 +33,10 @@ exist outside a source's actual coverage.
 - Choosing HDF5 when the same provider product is available as COG or
   GeoTIFF.
 - Precolored consumer tiles or any paid / key-gated feed as a default
-  source.
+  source. One exception: a national product with no measured-value
+  alternative, whose published legend matches an accepted profile exactly
+  for every layer, and whose frames are rejected when unknown colours appear
+  ([inpe-brazil.md](inpe-brazil.md)).
 - Polar ODIM / DX / ORD `PVOL` readers. Those stay PolarFamily.
 - Faking NEXRAD Level II history, tilts, or a painting sweep on a
   mosaic that has none.
