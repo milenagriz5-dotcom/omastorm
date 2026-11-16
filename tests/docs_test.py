@@ -30,5 +30,13 @@ class DocsTests(unittest.TestCase):
             page.write_text('[good](target/generated.png) [outside](../outside.md)\n')
             self.assertIn('escapes repository',docs.check_file(page,root)[0])
 
+    def test_source_comments_must_name_existing_docs(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            root=Path(scratch);(root/'docs').mkdir();(root/'docs/real.md').write_text('# Real\n')
+            (root/'a.rs').write_text('//! See `docs/real.md`.\n// and docs/gone.md\n')
+            (root/'b.md').write_text('docs/also-gone.md is prose, checked as a link elsewhere\n')
+            errors=docs.check_sources(['a.rs','b.md','missing.rs'],root)
+            self.assertEqual(errors,['a.rs:2: missing doc docs/gone.md'])
+
 
 if __name__ == '__main__': unittest.main()

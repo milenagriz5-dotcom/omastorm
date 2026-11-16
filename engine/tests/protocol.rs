@@ -44,7 +44,14 @@ fn scratch_root(name: &str) -> PathBuf {
     fs::create_dir_all(&root).unwrap();
     // Remove engine/.. before adding the socket suffix: Unix socket paths
     // have a small byte limit, especially in nested PR worktrees.
-    fs::canonicalize(root).unwrap()
+    let root = fs::canonicalize(root).unwrap();
+    let socket = root.join("omastorm/engine.sock");
+    assert!(
+        socket.as_os_str().len() < 108,
+        "{} exceeds the 108-byte Unix socket limit; a symlinked target/ is the usual cause (scripts/cargo.sh replaces it)",
+        socket.display()
+    );
+    root
 }
 /// Connect once the daemon under `root` listens, within `STARTUP`; `alive`
 /// fails early when the daemon has already exited.

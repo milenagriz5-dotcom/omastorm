@@ -6,6 +6,8 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 RETIRED = re.compile(r'\bmise\s+(?:engine-(?:bump|tag|verify|pin)|build-release)\b|(?:scripts/)(?:check|release-engine|bump-engine-version|tag-engine-release|pin-engine-release|require-origin-main|prepare-pinned-ui-check|link-plugin|dev-bootstrap|check-engine-release|check-engine-binary|ci-protocol)\.sh\b|scripts/ci-(?:changes|tests)\.py\b')
+SOURCE_DOC = re.compile(r'\bdocs/[\w./-]+\.md\b')
+SOURCES = ('engine/src', 'engine/tests', 'ui', 'scripts')
 GENERATED = ('target/', 'review/', 'data/raw/', 'data/derived/', 'docs/media/')
 
 
@@ -42,14 +44,28 @@ def check_file(path, root=ROOT):
     return errors
 
 
+def check_sources(names, root=ROOT):
+    """Code and comments that name a docs/*.md page must name one that exists."""
+    errors = []
+    for name in names:
+        path = root / name
+        if path.suffix == '.md' or not path.is_file(): continue
+        try: lines = path.read_text().splitlines()
+        except UnicodeDecodeError: continue
+        for number, line in enumerate(lines, 1):
+            errors += [f'{name}:{number}: missing doc {ref}' for ref in SOURCE_DOC.findall(line) if not (root / ref).exists()]
+    return errors
+
+
 def main():
     paths = subprocess.check_output(['git','ls-files','-z','--','*.md'], cwd=ROOT).decode().split('\0')
-    errors = []
+    sources = subprocess.check_output(['git','ls-files','-z','--',*SOURCES], cwd=ROOT).decode().split('\0')
+    errors = check_sources([name for name in sources if name])
     for name in paths:
         path = ROOT / name
         if name and path.is_file(): errors.extend(check_file(path))
     if errors: raise SystemExit('\n'.join(errors))
-    print('Active documentation commands and local links: PASS')
+    print('Active documentation commands, local links and source doc references: PASS')
 
 
 if __name__ == '__main__': main()

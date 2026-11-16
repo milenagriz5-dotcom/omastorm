@@ -194,7 +194,7 @@ palette semantics, geography, metadata, corrupt/truncated containers,
 unsupported PNG variants, and allocation/expansion limits:
 
 ```sh
-mise exec -- cargo test --offline --locked mrms::tests
+bash scripts/cargo.sh test --offline --locked mrms::tests
 mise check
 ```
 
@@ -205,7 +205,7 @@ For the first verified sample:
 OMASTORM_MRMS_SAMPLE=/tmp/omastorm-mrms-qcbase.grib2.gz \
 OMASTORM_MRMS_STAMP=20260926-182139 \
 OMASTORM_MRMS_OUTPUT=target/research/mrms-decoder \
-mise exec -- cargo test --offline --locked --release --bin omastorm-engine \
+bash scripts/cargo.sh test --offline --locked --release --bin omastorm-engine \
   mrms::tests::mrms_runtime_sample -- --ignored --exact --nocapture
 ```
 
