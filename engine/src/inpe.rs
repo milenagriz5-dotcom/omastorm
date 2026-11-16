@@ -37,6 +37,12 @@ pub const ATTRIBUTION: &str = "INPE/CPTEC Nowcasting · DECEA, CEMADEN, SIPAM an
 /// outrank a continental fallback should one be compiled in.
 const SELECTION_PRIORITY: i32 = 20;
 const HOST: &str = "https://nowcasting.cptec.inpe.br/api/v1/paths/";
+/// Identifies Omastorm to INPE, as the METAR and OSM clients do.
+const USER_AGENT: &str = concat!(
+    "omastorm/",
+    env!("CARGO_PKG_VERSION"),
+    " (https://omastorm.com)"
+);
 /// The one product every INPE radar layer publishes with the same legend.
 const LAYER_SUFFIX: &str = "~cappi~cappi3km";
 
@@ -670,7 +676,7 @@ pub(crate) fn frame(slot_ms: i64, palette: &[String], bounds: &[f64]) -> MosaicF
     MosaicFrame {
         id: format!("{ID}-{}", t.format("%Y%m%dT%H%M%SZ")),
         product: "REF".into(),
-        product_name: "CAPPI 3 km Reflectivity (composite)".into(),
+        product_name: "CAPPI 3 km Reflectivity (composite from INPE legend)".into(),
         units: "dBZ".into(),
         scan_time: t.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
         sweep_end: None,
@@ -959,6 +965,7 @@ async fn get_http(path: String, max: usize) -> Result<Vec<u8>, String> {
     let url = format!("{HOST}{path}");
     let response = live_index::http_client()
         .get(&url)
+        .header(reqwest::header::USER_AGENT, USER_AGENT)
         .send()
         .await
         .map_err(|e| format!("fetching INPE {path}: {e}"))?

@@ -469,18 +469,18 @@ fn a_cycle_publishes_newest_live_then_history_and_never_refetches() {
                 ),
             ]
         );
-        let first = mock.requests();
-        assert_eq!(first[0], "catalog");
+        // The whole request sequence, in order: catalog, the changed layer's
+        // times, its legend once per session, then each slot's frame newest
+        // first. 23:12 lies after the newest slot and is not fetched.
         assert_eq!(
-            first.iter().filter(|p| p.ends_with("/legend")).count(),
-            1,
-            "legend checked once per session"
-        );
-        assert!(first.contains(&format!("frames/radar/{CHAPECO}/202611152306/full")));
-        assert!(first.contains(&format!("frames/radar/{CHAPECO}/202611152256/full")));
-        assert!(
-            !first.iter().any(|p| p.contains("202611152312")),
-            "after the slot"
+            mock.requests(),
+            vec![
+                "catalog".to_string(),
+                format!("radar/layers/{CHAPECO}/times"),
+                format!("radar/layers/{CHAPECO}/legend"),
+                format!("frames/radar/{CHAPECO}/202611152306/full"),
+                format!("frames/radar/{CHAPECO}/202611152256/full"),
+            ]
         );
 
         // Same catalog, same time: only the catalog is read again.
@@ -490,6 +490,32 @@ fn a_cycle_publishes_newest_live_then_history_and_never_refetches() {
         assert!(matches!(outcome, Outcome::Published(0)));
         assert_eq!(mock.requests(), vec!["catalog".to_string()]);
         assert!(rx.try_recv().is_err());
+
+        // A newer frame listed: times again, then only the new slot's frame;
+        // the legend and every published slot are not requested again.
+        let later = Mock::new(
+            "2026-11-15T23:22:00Z",
+            &[
+                "2026-11-15T22:56:00Z",
+                "2026-11-15T23:06:00Z",
+                "2026-11-15T23:12:00Z",
+                "2026-11-15T23:22:00Z",
+            ],
+        );
+        let get = later.get();
+        let now = ms("2026-11-15T23:41:00Z"); // newest slot 23:20
+        let outcome = cycle(&mut feed, now, &get, &events, &work, &palette, &bounds)
+            .await
+            .unwrap();
+        assert!(matches!(outcome, Outcome::Published(1)));
+        assert_eq!(
+            later.requests(),
+            vec![
+                "catalog".to_string(),
+                format!("radar/layers/{CHAPECO}/times"),
+                format!("frames/radar/{CHAPECO}/202611152312/full"),
+            ]
+        );
     });
 }
 
