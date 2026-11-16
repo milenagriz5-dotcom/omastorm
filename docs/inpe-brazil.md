@@ -1,8 +1,8 @@
 # INPE Brazil composite
 
-`engine/src/inpe.rs` builds the `inpe-brazil` source: one reflectivity
-mosaic for Brazil, composited by the engine from the per-radar products that
-INPE/CPTEC publishes for its Nowcasting map. Its tests,
+`engine/src/inpe.rs` builds the `inpe-brazil` source: a **composite**, a
+mosaic Omastorm assembles itself, of Brazil's radars from the per-radar
+products that INPE/CPTEC publishes for its Nowcasting map. Its tests,
 `engine/src/inpe/tests.rs`, synthesize every input and run offline.
 
 Related: [grid-adapters.md](grid-adapters.md) (the GridFamily contract this
@@ -54,9 +54,11 @@ reinterpreting it. Each opaque pixel is projected onto the legend ramp: a
 legend colour gives its value, a resampled blend of two adjacent colours
 interpolates between them, and a colour further than 16 RGB units from the
 whole ramp matches nothing. A frame with more than 2 % unmatched opaque pixels
-is rejected as a foreign palette. Transparent pixels are no echo. Values are
-stored as OPERA-style half-dBZ codes (`floor(dBZ × 2 + 66)`), so the shared
-palette, bounds and measured-value readout apply unchanged.
+is rejected as a foreign palette. Transparent pixels are no echo. The result is
+**legend-derived reflectivity**, and the product says so: "CAPPI 3 km
+Reflectivity (composite from INPE legend)", in dBZ. Values are stored as
+OPERA-style half-dBZ codes (`floor(dBZ × 2 + 66)`), so the shared palette,
+bounds and measured-value readout apply unchanged.
 
 **Overlap.** Every cell keeps the strongest code of the radars that reach it.
 Cells inside some radar's range with no echo are *undetect*; cells no radar
@@ -65,8 +67,11 @@ in R, missing/undetect flags in G, half-dBZ code in B.
 
 ## Timing
 
-Composites are stamped on ten-minute UTC slots. Each radar contributes its
-newest frame in `(slot − 20 min, slot]`. INPE frames reach the API 10–40
+Each composite carries a **nominal time** on a ten-minute UTC boundary, as
+OPERA and MRMS carry their providers' nominal times. It stands for the
+20 minutes before it: each radar contributes its newest frame in
+`(nominal − 20 min, nominal]`, so the observations in a composite are up to
+20 minutes older than its stamp. INPE frames reach the API 10–40
 minutes after observation, so a slot is built only 20 minutes after it ends,
 and is never revised once published. A layer whose catalog `latest_time` is
 more than three hours old is treated as offline.
@@ -75,7 +80,12 @@ The adapter polls every 120 seconds. A cycle refreshes the catalog, fetches
 time lists only for layers whose `latest_time` changed, then builds every
 unpublished slot newest first: the newest as the live frame, older ones as
 history, up to 12 slots (two hours). Rasters are cached for reuse by the next
-older slot; nothing is refetched.
+older slot; nothing is refetched. A test pins this request order.
+
+Requests identify themselves with Omastorm's User-Agent, as the METAR and
+map clients do. A steady day is about 7,000 requests: 720 catalog reads,
+roughly 3,200 time lists (only for layers whose newest frame changed) and
+roughly 3,200 frames of 10–40 KB.
 
 Feed age uses the source's own rules (`inpe::AGE`): stale at 45 minutes,
 unavailable at 90. NEXRAD's 10/30-minute rules would always read stale here,
@@ -98,18 +108,17 @@ retained frames; a catalog with no recent CAPPI 3 km frames reports silence.
 picks it anywhere inside its box. It must stay above any continental fallback
 compiled in later. Nothing outside Brazil's box changes.
 
-## Open before merge
+## Precoloured source
 
-These need a decision from the maintainer; do not paper over them.
+[grid-adapters.md](grid-adapters.md#non-goals) excludes precoloured imagery,
+with one exception that this source meets: a national product with no
+measured-value alternative, whose published legend matches an accepted
+profile exactly for every layer, and whose frames are rejected when unknown
+colours appear. Manual-only selection was rejected: nothing else covers
+Brazil, so follow would show an empty map there.
 
-- **Precolored source.** [grid-adapters.md](grid-adapters.md#non-goals) lists
-  "precolored consumer tiles" as a non-goal. INPE publishes no measured
-  product, so this adapter reconstructs values from colour. The safeguards
-  above (exact legend match per layer, 1 dBZ legend, bounded tolerance,
-  rejection of foreign palettes) make the reconstruction exact to the legend's
-  resolution, but it is still a reconstruction. Either record an explicit
-  exception for verified-legend national products or keep the source out of
-  the registry.
+## Open
+
 - **Access and license terms.** The grid-adapter rules require a provider's
   terms before an adapter is compiled in, and an attribution entry in README.
   INPE's terms of use for the Nowcasting API are not yet recorded: none were
@@ -117,12 +126,10 @@ These need a decision from the maintainer; do not paper over them.
   CC BY-ND 3.0 footer covers site content, not necessarily this data. Ask
   nowcasting.cptec@inpe.br. Nothing is vendored: frames are fetched live and
   cached at runtime only.
-- **README.** The data-sources paragraph and the mosaic sections do not yet
-  mention INPE.
 
 ## Verifying
 
 ```sh
 bash scripts/cargo.sh test inpe::
-python3 scripts/tooling/probe.py inpe-brazil --seconds 60   # live; on chore/test-env-guards
+python3 scripts/tooling/probe.py inpe-brazil --seconds 60   # live
 ```

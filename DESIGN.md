@@ -79,7 +79,9 @@ attribution). The meta
 line is the age only, right-aligned under that row.
 
 **Time.** Age on the meta line is how stale the frame on screen is. The
-strip stamp is the absolute observation time (date, time, zone). Locale
+strip stamp is absolute (date, time, zone): a site's observation time, or a
+mosaic's nominal time, which stands for the observations of a fixed window
+before it. Locale
 picks date order and 12/24h only; dates stay numeric. Locale also picks
 kilometres or miles for the scale bar and picker distances. The tick strip is
 position in the loop, not a second clock. One tick per timeline entry,
